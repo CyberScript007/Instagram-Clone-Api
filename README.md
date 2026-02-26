@@ -7,8 +7,11 @@ A scalable backend API powering an Instagram-like social media platform built wi
 ### 🔐 Authentication & Security
 
     JWT authentication
+
     Email/OTP verification
+
     Multi-Factor Authentication (Google Authenticator)
+
     Rate limiting & abuse prevention
 
 ### 📝 Content System
