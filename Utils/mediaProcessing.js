@@ -102,20 +102,25 @@ const mediaProcessing = async ({
     // convert the file path into an absolute path
     absolutePath = path.resolve(filePath);
 
-    console.log(filePath, "filePath");
-
     // create a filename for story file only
-    const filename = path.basename(absolutePath);
-    console.log(filename, "filename");
+    const originalFilename = path.basename(absolutePath);
+
+    // get the file name without the extension
+    const filenameWithoutExt = path.parse(originalFilename).name;
+
+    // create the filename dynamically
+    const filename = fileHash ? fileHash : filenameWithoutExt;
 
     // Calculate the file hash, this is used for unique naming and cache keys and check if the content type is post before calculating the file hash because we only want to cache the post media file, not the story media file since story only last for 24 hours and we want to save the storage space in redis
-    if (contentType === "post") {
+    if (contentType === "post" || type === "audio") {
       fileHash = await calculateFileHash(absolutePath);
     }
 
-    // i) check if the isCompressed is true and check if the fileHash exist as a redis key and also check if the contentType is post.
-    if (isCompressed && contentType === "post") {
-      const cachedResult = await redisClient.get(`fileHash:${fileHash}`);
+    // i) check if the isCompressed is true and check if the fileHash exist as a redis key and also check if the contentType is post or if the type is audio.
+    if ((isCompressed && contentType === "post") || type === "audio") {
+      const cachedResult = await redisClient.get(
+        `fileHash:${fileHash}:audio:${isExtractedAudio}`,
+      );
 
       if (cachedResult) {
         console.log(
@@ -197,7 +202,7 @@ const mediaProcessing = async ({
         const thumbnailDir = path.join(destinationDir, "thumbnails");
 
         // join both the thumbnail directory and filename together to create thumbnail url
-        thumbnailUrl = path.join(thumbnailDir, `${fileHash}-thumbnail.jpg`);
+        thumbnailUrl = path.join(thumbnailDir, `${filename}-thumbnail.jpg`);
         // create the thumbnail directory programmatical
         await fs.mkdir(thumbnailDir, { recursive: true });
 
@@ -205,7 +210,7 @@ const mediaProcessing = async ({
         await new Promise((resolve, reject) => {
           ffmpeg(absolutePath)
             .screenshot({
-              filename: `${fileHash}-thumbnail.jpg`,
+              filename: `${filename}-thumbnail.jpg`,
               folder: thumbnailDir,
               count: 1,
             })
@@ -224,7 +229,7 @@ const mediaProcessing = async ({
         const compressedDir = path.join(destinationDir, "videos");
 
         // join both the compressed directory with the filename to create the compressed video url
-        compressedPath = path.join(compressedDir, `${fileHash}-compressed.mp4`);
+        compressedPath = path.join(compressedDir, `${filename}-compressed.mp4`);
 
         // create the video compressed directory automatically
         await fs.mkdir(compressedDir, { recursive: true });

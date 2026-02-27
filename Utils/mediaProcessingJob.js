@@ -17,6 +17,8 @@ const mediaProcessingJob = async (job) => {
     username,
   } = job.data;
 
+  console.log(isExtractedAudio, "isExtractedAudio");
+
   // create a variable to store Model, destination dir, max duration and if extracted audio is needed
   let Model;
   let destinationDir;
@@ -50,7 +52,7 @@ const mediaProcessingJob = async (job) => {
     // check if the userId exist
     if (contentType === "post" && !userId) {
       throw new Error(
-        "Job data is missing the userId, cannot create Audio entry",
+        "Cannot process post: userId is required for audio ownership.",
       );
     }
 

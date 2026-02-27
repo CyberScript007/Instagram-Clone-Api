@@ -41,7 +41,7 @@ const storyJob = async (job) => {
         // it's store the userId of the active popular users
         .sAdd(activeMegaStoryCreatorKey, storyCreator)
         // set the expiration time for the mega story storyCreator set and add 1 hour to the time to live
-        .expire(megaStoryCreator, ttlInSeconds + 3600)
+        .expireAt(megaStoryCreator, ttlInSeconds + 3600)
         // execute the pipeline
         .exec();
 

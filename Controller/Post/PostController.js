@@ -31,6 +31,7 @@ exports.resizeCompressedImagesOrVideos = catchAsync(async (req, res, next) => {
   // check if the req.files consisit a single video
   const isSinglePostVideo =
     req.files.length === 1 && req.files[0].mimetype.startsWith("video");
+  console.log(isSinglePostVideo, "isSinglePostVideo");
 
   // create the media field with empty array
   req.body.media = [];

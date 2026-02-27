@@ -1,15 +1,15 @@
 const sharp = require("sharp");
-const Follow = require("../Models/followModel");
 const Story = require("../Models/storyModel");
 
 const catchAsync = require("../Utils/catchAsync");
 const sendErrorMiddleware = require("../Utils/sendErrorMiddleware");
 const deleteLocalFile = require("../Utils/deleteLocalFile");
 const mediaProcessing = require("../Utils/mediaProcessing");
+const redisClient = require("../Utils/redisClient");
 
 const mediaProcessingQueue = require("../Utils/mediaProcessingQueue");
 const storyQueue = require("../Utils/storyQueue");
-const redisClient = require("../Utils/redisClient");
+const storyDeletionQueue = require("../Utils/storyDeletionQueue");
 
 exports.resizeImageAndVideoStory = catchAsync(async (req, res, next) => {
   // check if file is present
@@ -87,7 +87,6 @@ exports.resizeImageAndVideoStory = catchAsync(async (req, res, next) => {
 exports.createStories = catchAsync(async (req, res, next) => {
   // create a new story
   const storiesPromises = req.body.media.map(async (story) => {
-    console.log(story.mediaUrl);
     return await Story.create({
       user: req.user.id,
       mediaUrl: story.mediaUrl,
@@ -159,6 +158,34 @@ exports.createStories = catchAsync(async (req, res, next) => {
   });
   // wait for all the new stories to be added to the story queue
   await Promise.all(storyQueuePromises);
+
+  // add all the new stories to the story deletion queue to delete the expired stories
+  const storyDeletionPromises = stories.map((story) => {
+    return storyDeletionQueue.add(
+      "story-deletion",
+      {
+        storyId: story._id.toString(),
+        storyCreator: story.user.toString(),
+        isPopularUser: req.user.isPopularUser,
+      },
+      {
+        delay: Math.max(0, new Date(story.expiresAt).getTime() - Date.now()), // delay the job until the story expires to make sure the story is deleted when it expires
+        attempts: 3, // retry the job up to 3 times if it fails, this is useful when there is a temporary error such as network error or database connection error
+        removeOnComplete: true, // remove the job from the queue when it is completed to prevent the queue from growing indefinitely
+        backoff: {
+          type: "exponential",
+          delay: 5000, // initial delay of 5 seconds before retrying the job if it fails, the delay will increase exponentially for each retry attempt
+        },
+        removeOnFail: {
+          age: 24 * 3600, // remove the job from the queue if it fails and it is older than 24 hours to prevent the queue from growing indefinitely with failed jobs
+        },
+        jobId: `story-deletion-${story._id.toString()}`, // assign a custom job id to prevent duplicate jobs for the same story, this is useful when there is a retry attempt for the job, it will not create a new job but will retry the existing job with the same job id
+      },
+    );
+  });
+
+  // wait for all the new stories to be added to the story deletion queue
+  await Promise.all(storyDeletionPromises);
 
   // send a success response
   res.status(201).json({
